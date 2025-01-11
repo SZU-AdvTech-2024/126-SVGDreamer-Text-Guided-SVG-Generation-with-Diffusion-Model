@@ -1,0 +1,8 @@
+- x=iconography
+- skip_sive=False
+- prompt='A pizza; Cartoon simple style; Center; The background is either transparent
+  or blank.'
+- token_ind=4
+- x.vpsd.t_schedule=randint
+- result_path=./logs/batman
+- multirun=True

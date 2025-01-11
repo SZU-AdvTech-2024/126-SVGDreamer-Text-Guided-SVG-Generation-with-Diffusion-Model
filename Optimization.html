@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- Load the Paper.js library -->
+<script type="text/javascript" src="./node_modules/paper/dist/paper-full.js"></script>
+<!-- Define inlined PaperScript associate it with myCanvas -->
+<script type="text/paperscript" canvas="myCanvas">
+    
+    // 计算路径的控制点范围
+    function findBounds(paths) {
+        var points = [];
+        var minY = Infinity;
+        var maxY = -Infinity;
+        var minX = Infinity;
+        var maxX = -Infinity;
+        
+        // 遍历所有路径点
+        for (var index = 0; index < paths.length; index++) {
+            var path = paths[index];
+            if(path instanceof Path){
+                for (var j = 0; j < path.segments.length; j++){
+                    var point = paths[index].segments[j].point;
+                    points.push(point);
+                    var y = point.y;
+                    var x = point.x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                }
+            }
+            else{
+                for(var i = 0; i < path.children.length; i++){
+                    var path_child = path.children[i];
+                    for (var j = 0; j < path_child.segments.length; j++){
+                        var segment = path_child.segments[j];
+                        points.push(segment.point);
+                        var y = segment.point.y;
+                        var x = segment.point.x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                    }
+                }
+            }
+
+        }
+        return [[minX, maxX], [minY, maxY], points];
+    }
+
+    // 计算数据之间的比例关系
+    function getProportion(datas) {
+        var proportions = [];
+        var sum = 0;
+        for (var i = 0; i < datas.length; i++) {
+            sum += datas[i];
+        }
+        for (var i = 0; i < datas.length; i++) {
+            proportions.push(datas[i] / sum);
+        }
+        return proportions;
+    }
+
+    // 判断两个路径间是否相邻
+    function arePathsAdjacent(path1, path2) {
+        var threshold = 100;
+        // 快速筛选：检查边界框是否相交
+        if (!path1.bounds.intersects(path2.bounds)) {
+            return false;
+        }
+
+        // 精确计算最短距离
+        var minDistance = path1.getNearestPoint(path2.position).getDistance(
+            path2.getNearestPoint(path1.position)
+        );
+
+        return minDistance <= threshold;
+    }
+    
+    function areColorSimilar(path1, path2) {
+        var threshold = 0.3;
+        var rgb1 = path1.fillColor.components;
+        var rgb2 = path2.fillColor.components;
+        var rDiff = rgb1[0] - rgb2[0];
+        var gDiff = rgb1[1] - rgb2[1];
+        var bDiff = rgb1[2] - rgb2[2];
+        var distance = Math.sqrt(
+            Math.pow(rDiff, 2) + Math.pow(gDiff, 2) + Math.pow(bDiff, 2)
+        );
+
+        return distance <= threshold;
+        
+    }
+  
+    project.importSVG('./svg/pizza-test-2.svg', function(item) {
+
+        item.position = view.center;    // 居中SVG
+        
+        // 获取svg的路径集合
+        var paths = [];
+        function combinedPath(path_item) {
+            // ret = [];
+            for (var index = 0; index < path_item.children.length; index++) {
+                var svgItem = path_item.children[index];
+                // console.log(svgItem);
+                if (svgItem instanceof Path || svgItem instanceof CompoundPath) { 
+                    // console.log(svgItem.position);
+                    // console.log(svgItem.fillColor.components);
+                    // svgItem.clearHandles();
+                    paths.push(svgItem);
+                }
+                else if(index != 0 && svgItem instanceof Shape){
+                    paths.push(svgItem.toPath());
+                }
+                else if(svgItem instanceof Group){
+                    combinedPath(svgItem);
+                }
+            }
+        }
+        combinedPath(item.clone());
+        item.remove();
+        // console.log(paths);
+
+        // test = [1, 2, 3]
+        // for(var i = 0; i < test.length; i++){
+        //     console.log("test:", test);
+        //     console.log("i:", i);
+        //     console.log("test[i]:", test[i]);
+        //     test.splice(0,1);
+        // }
+        for(var i = 0; i < paths.length; i++){
+            var main_path = paths[i];
+            var similar_paths = [];
+            if(main_path == "None"){
+                continue;
+            }
+            for(var j = 0; j < paths.length; j++){
+                var sub_path = paths[j];
+                // 不和自己比较
+                if(i == j || sub_path == "None"){
+                    continue;
+                }
+
+                if(arePathsAdjacent(main_path, sub_path) && areColorSimilar(main_path, sub_path)){
+                    // console.log("is close");
+                    
+                    // console.log("is similar")
+                    similar_paths.push(sub_path.clone());
+                    
+                    // var avg_r = (main_path.fillColor.red + sub_path.fillColor.red) / 2;
+                    // var avg_g = (main_path.fillColor.green + sub_path.fillColor.green) / 2;
+                    // var avg_b = (main_path.fillColor.blue + sub_path.fillColor.blue) / 2;
+                    
+                    // var avg_color = new Color(avg_r, avg_g, avg_b); // 中和颜色
+                    
+                    // main_path = main_path.unite(sub_path.clone());  // 合并路径
+                    // main_path.fillColor = avg_color;
+                    paths[j] = "None";
+                    sub_path.remove();
+
+                    // paths.splice(j, 1); // 删除路径元素
+                }
+                else{
+                    // sub_path.subtract(main_path);
+                    // paths.splice(j, 1);
+                }
+            }
+            console.log(similar_paths.length);
+            if(similar_paths.length == 0){
+                //paths[j] = "None";
+                //main_path.remove();
+                continue;
+            }
+            var totalRed = main_path.fillColor.red;
+            var totalGreen = main_path.fillColor.green;
+            var totalBlue = main_path.fillColor.blue;
+            // 遍历每个路径的填充颜色
+            for(var j = 0; j < similar_paths.length; j++) {
+                var color = similar_paths[j].fillColor;
+                totalRed += color.red;
+                totalGreen += color.green;
+                totalBlue += color.blue;
+            }
+            // 求平均
+            var count = similar_paths.length + 1;
+            var avg_r = totalRed / count;
+            var avg_g = totalGreen / count;
+            var avg_b = totalBlue / count;
+
+            var avg_color = new Color(avg_r, avg_g, avg_b); // 中和颜色
+            // main_path.fillColor = avg_color;
+            for(var j = 0; j < similar_paths.length; j++) {
+                // main_path = main_path.unite(similar_paths[j]);
+                similar_paths[j].fillColor = main_path.fillColor;
+            }
+    
+        }
+        
+
+        // Define operations and colors (we will only use the first operation statically)
+        // 'unite', 'intersect', 'subtract', 'exclude', 'divide'
+        // var operation = 'intersect';
+        // var color = 'black';
+
+        // // Apply the path operation statically
+        // var result = [];
+        // for(var i = 0; i < paths.length; i++){
+            
+        //     mask = mask_in['intersect'](paths[i]);
+            
+        //     result.push(mask);
+
+        //     // result_in = paths[i][operation](mask_in);
+        //     // result.push(result_in);
+        // }
+        
+        // for(var i = 0;i < result.length;i++){
+        //     // result[i].fillColor = color;
+        //     result[i].moveBelow(new Path());
+        // }
+        
+        // Center elements on resize
+        // function onResize() {
+        //     text.position = view.center + [0, 200];
+        //     square.position = view.center;
+        // }
+
+    });
+
+</script>
+</head>
+<body>
+    <!-- <form>
+        <input type="file" id="file">
+    </form> -->
+	<canvas id="myCanvas" resize="true" width="1200" height="3000"></canvas>
+</body>
+</html>

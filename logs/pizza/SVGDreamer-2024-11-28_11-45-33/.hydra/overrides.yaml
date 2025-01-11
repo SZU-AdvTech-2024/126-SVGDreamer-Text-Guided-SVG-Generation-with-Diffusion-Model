@@ -1,0 +1,7 @@
+- x=iconography
+- skip_sive=False
+- prompt='A pizza; Cartoon simple style; Center, full circle; The background is either
+  transparent or white.'
+- token_ind=4
+- x.vpsd.t_schedule=randint
+- result_path=./logs/pizza
